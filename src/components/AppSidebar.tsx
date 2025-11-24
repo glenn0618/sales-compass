@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, FolderOpen, FileText, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, Package, FolderOpen, FileText, ShoppingCart, ClipboardList } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 
 import {
@@ -17,6 +17,7 @@ const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Products", url: "/products", icon: Package },
   { title: "Categories", url: "/categories", icon: FolderOpen },
+  { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Reports", url: "/reports", icon: FileText },
   { title: "POS", url: "/pos", icon: ShoppingCart },
 ];
