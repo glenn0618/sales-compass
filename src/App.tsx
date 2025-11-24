@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Categories from "./pages/Categories";
+import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
 import POS from "./pages/POS";
 import Login from "./pages/Login";
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
           <Route path="/products" element={<DashboardLayout><Products /></DashboardLayout>} />
           <Route path="/categories" element={<DashboardLayout><Categories /></DashboardLayout>} />
+          <Route path="/orders" element={<DashboardLayout><Orders /></DashboardLayout>} />
           <Route path="/reports" element={<DashboardLayout><Reports /></DashboardLayout>} />
           <Route path="/pos" element={<DashboardLayout><POS /></DashboardLayout>} />
           <Route path="*" element={<NotFound />} />
