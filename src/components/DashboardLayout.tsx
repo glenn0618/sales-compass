@@ -11,12 +11,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
-          <header className="sticky top-0 z-10 border-b bg-card px-6 py-4 flex items-center gap-4">
-            <SidebarTrigger />
-            <h1 className="text-lg font-semibold text-foreground">Retail Management System</h1>
+        <div className="flex-1 flex flex-col w-full min-w-0">
+          <header className="sticky top-0 z-10 border-b bg-card px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
+            <SidebarTrigger className="flex-shrink-0" />
+            <h1 className="text-sm sm:text-lg font-semibold text-foreground truncate">Retail Management System</h1>
           </header>
-          <main className="flex-1 p-6 bg-background">
+          <main className="flex-1 p-3 sm:p-4 lg:p-6 bg-background overflow-x-hidden">
             {children}
           </main>
         </div>

@@ -91,7 +91,7 @@ export default function POS() {
         <p className="text-muted-foreground mt-1">Process customer transactions</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Products Section */}
         <div className="lg:col-span-2">
           <Card>
@@ -99,20 +99,20 @@ export default function POS() {
               <CardTitle>Products</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
                 {products.map((product) => (
                   <Card
                     key={product.id}
                     className="cursor-pointer hover:border-primary transition-colors"
                     onClick={() => addToCart(product)}
                   >
-                    <CardContent className="p-4 space-y-2">
+                    <CardContent className="p-3 sm:p-4 space-y-2">
                       <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-                        <ShoppingCart className="h-12 w-12 text-muted-foreground" />
+                        <ShoppingCart className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm">{product.name}</h3>
-                        <p className="text-lg font-bold text-primary">₱{product.price.toLocaleString()}</p>
+                        <h3 className="font-semibold text-xs sm:text-sm line-clamp-1">{product.name}</h3>
+                        <p className="text-base sm:text-lg font-bold text-primary">₱{product.price.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">Stock: {product.quantity}</p>
                       </div>
                     </CardContent>
@@ -142,40 +142,46 @@ export default function POS() {
             </CardContent>
           </Card>
 
-          <Card className="flex flex-col h-[calc(100vh-400px)]">
+          <Card className="flex flex-col h-auto lg:h-[calc(100vh-400px)]">
             <CardHeader>
-              <CardTitle>Cart</CardTitle>
+              <CardTitle>Cart ({cart.length})</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              <ScrollArea className="flex-1 -mx-6 px-6">
+            <CardContent className="flex-1 flex flex-col min-h-[300px] lg:min-h-0">
+              <ScrollArea className="flex-1 -mx-6 px-6 max-h-[400px] lg:max-h-none">
                 {cart.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     Cart is empty
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {cart.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm">{item.name}</h4>
+                      <div 
+                        key={item.id} 
+                        className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-muted rounded-lg transition-all"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">{item.name}</h4>
                           <p className="text-sm text-muted-foreground">
                             ₱{item.price.toLocaleString()} × {item.cartQuantity}
                           </p>
+                          <p className="text-sm font-semibold text-primary">
+                            ₱{(item.price * item.cartQuantity).toLocaleString()}
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 justify-end sm:justify-start">
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-7"
+                            className="h-8 w-8 flex-shrink-0"
                             onClick={() => updateCartQuantity(item.id, -1)}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
-                          <span className="w-8 text-center font-medium">{item.cartQuantity}</span>
+                          <span className="w-10 text-center font-medium text-sm">{item.cartQuantity}</span>
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-7"
+                            className="h-8 w-8 flex-shrink-0"
                             onClick={() => updateCartQuantity(item.id, 1)}
                           >
                             <Plus className="h-3 w-3" />
@@ -183,7 +189,7 @@ export default function POS() {
                           <Button
                             size="icon"
                             variant="outline"
-                            className="h-7 w-7 ml-1"
+                            className="h-8 w-8 ml-1 flex-shrink-0 text-destructive hover:bg-destructive hover:text-destructive-foreground"
                             onClick={() => removeFromCart(item.id)}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -197,8 +203,8 @@ export default function POS() {
 
               <div className="pt-4 border-t mt-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total:</span>
-                  <span className="text-2xl font-bold text-primary">
+                  <span className="text-base sm:text-lg font-semibold">Total:</span>
+                  <span className="text-xl sm:text-2xl font-bold text-primary">
                     ₱{totalPrice.toLocaleString()}
                   </span>
                 </div>

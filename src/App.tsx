@@ -9,6 +9,7 @@ import Products from "./pages/Products";
 import Categories from "./pages/Categories";
 import Reports from "./pages/Reports";
 import POS from "./pages/POS";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
           <Route path="/products" element={<DashboardLayout><Products /></DashboardLayout>} />
           <Route path="/categories" element={<DashboardLayout><Categories /></DashboardLayout>} />
