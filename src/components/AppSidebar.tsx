@@ -22,7 +22,6 @@ const menuItems = [
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Reports", url: "/reports", icon: FileText },
   { title: "POS", url: "/pos", icon: ShoppingCart },
-    { title: "Profile", url: "/profile", icon: User },
 ];
 
 export function AppSidebar() {
