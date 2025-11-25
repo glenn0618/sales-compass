@@ -12,9 +12,9 @@ import { toast } from "sonner";
 
 // Mock data
 const initialProducts = [
-  { id: 1, name: "Laptop Pro", quantity: 25, srp: 55000, price: 52000, description: "High-performance laptop" },
-  { id: 2, name: "Wireless Mouse", quantity: 150, srp: 850, price: 799, description: "Ergonomic wireless mouse" },
-  { id: 3, name: "USB-C Cable", quantity: 200, srp: 450, price: 399, description: "Fast charging cable" },
+  { id: 1, name: "Laptop Pro", quantity: 25, srp: 55000, price: 52000, description: "High-performance laptop", image: "" },
+  { id: 2, name: "Wireless Mouse", quantity: 150, srp: 850, price: 799, description: "Ergonomic wireless mouse", image: "" },
+  { id: 3, name: "USB-C Cable", quantity: 200, srp: 450, price: 399, description: "Fast charging cable", image: "" },
 ];
 
 interface Product {
@@ -24,6 +24,7 @@ interface Product {
   srp: number;
   price: number;
   description: string;
+  image: string;
 }
 
 export default function Products() {
@@ -42,7 +43,9 @@ export default function Products() {
     srp: "",
     price: "",
     description: "",
+    image: "",
   });
+  const [imagePreview, setImagePreview] = useState("");
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -55,7 +58,22 @@ export default function Products() {
       srp: "",
       price: "",
       description: "",
+      image: "",
     });
+    setImagePreview("");
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setFormData({...formData, image: result});
+        setImagePreview(result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAdd = () => {
@@ -71,6 +89,7 @@ export default function Products() {
       srp: parseFloat(formData.srp),
       price: parseFloat(formData.price),
       description: formData.description,
+      image: formData.image,
     };
 
     setProducts([...products, newProduct]);
@@ -87,7 +106,9 @@ export default function Products() {
       srp: product.srp.toString(),
       price: product.price.toString(),
       description: product.description,
+      image: product.image,
     });
+    setImagePreview(product.image);
     setIsEditDialogOpen(true);
   };
 
@@ -107,6 +128,7 @@ export default function Products() {
               srp: parseFloat(formData.srp),
               price: parseFloat(formData.price),
               description: formData.description,
+              image: formData.image,
             }
           : product
       ));
@@ -200,6 +222,20 @@ export default function Products() {
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-image">Product Image</Label>
+                <Input 
+                  id="add-image" 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
@@ -228,6 +264,7 @@ export default function Products() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Image</TableHead>
                   <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Quantity</TableHead>
@@ -240,6 +277,15 @@ export default function Products() {
               <TableBody>
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="h-12 w-12 object-cover rounded-md" />
+                      ) : (
+                        <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs">
+                          No image
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{product.id}</TableCell>
                     <TableCell>{product.name}</TableCell>
                     <TableCell>{product.quantity}</TableCell>
@@ -328,6 +374,20 @@ export default function Products() {
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-image">Product Image</Label>
+              <Input 
+                id="edit-image" 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
