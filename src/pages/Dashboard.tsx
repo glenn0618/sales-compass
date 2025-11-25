@@ -1,6 +1,6 @@
 import { StatCard } from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Package, FolderOpen } from "lucide-react";
+import { PhilippinePeso, Package, FolderOpen } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
 // Mock data
@@ -33,7 +33,7 @@ export default function Dashboard() {
         <StatCard
           title="Total Sales"
           value="₱145,231.89"
-          icon={DollarSign}
+          icon={PhilippinePeso}
           trend="+12.5% from last month"
           trendUp={true}
         />

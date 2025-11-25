@@ -3,30 +3,64 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { supabase } from "@/lib/supabaseClient";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 export default function Login() {
+    const [loading, setLoading] = useState(false); // <-- proper state
+    const apiUrl = import.meta.env.VITE_API_URL;
   const navigate = useNavigate();
 
-  const handleGoogleLogin = () => {
-    toast.success("Google login initiated");
-    // Navigate to dashboard after "login"
-    setTimeout(() => navigate("/"), 500);
-  };
+const handleGoogleLogin = async () => {
+  try {
+    const res = await fetch(`${apiUrl}/auth/google`);
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url; // redirect to Supabase Google login
+    }
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to initiate Google login");
+  }
+};
 
-  const handleEmailLogin = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    toast.success("Login successful");
-    navigate("/");
-  };
+ const handleEmailLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;
+  const password = (e.currentTarget.elements.namedItem("password") as HTMLInputElement).value;
+
+  try {
+    const res = await fetch(`${apiUrl}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    if (!res.ok) throw new Error(data.error || "Login failed");
+
+    console.log("Logged in user:", data.user);
+    toast.success("Login successful!");
+    navigate("/dashboard");
+  } catch (err: any) {
+    console.error(err);
+    toast.error(err.message || "Failed to login");
+  }
+};
+
+
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-1 text-center">
           <div className="mb-4">
-            <h1 className="text-3xl font-bold text-primary">RetailPro</h1>
+            <h1 className="text-3xl font-bold text-primary">Abyoutiful</h1>
             <p className="text-sm text-muted-foreground mt-1">Retail Management System</p>
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
@@ -35,7 +69,7 @@ export default function Login() {
         <CardContent className="space-y-4">
           {/* Google Sign In Button */}
           <Button
-            variant="outline"
+            variant="secondary"
             className="w-full h-11 text-base"
             onClick={handleGoogleLogin}
           >
@@ -45,7 +79,7 @@ export default function Login() {
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               />
               <path
-                fill="#34A853"
+                fill="#5e7c66ff"
                 d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
               />
               <path
@@ -94,16 +128,7 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <button
-              type="button"
-              className="text-primary hover:underline font-medium"
-              onClick={() => toast.info("Sign up feature coming soon")}
-            >
-              Sign up
-            </button>
-          </div>
+          
         </CardContent>
       </Card>
     </div>

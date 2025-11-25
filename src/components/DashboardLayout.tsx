@@ -1,10 +1,11 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabaseClient";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -12,10 +13,12 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
+  
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     toast.success("Logged out successfully");
-    navigate("/login");
+    navigate("/");
   };
 
   return (
@@ -26,11 +29,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <header className="sticky top-0 z-10 border-b bg-card px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <SidebarTrigger className="flex-shrink-0" />
-              <h1 className="text-sm sm:text-lg font-semibold text-foreground truncate">Retail Management System</h1>
+              <div className="truncate">
+                <h1 className="text-sm sm:text-lg font-semibold text-foreground">
+                  Retail Management System
+                </h1>
+          
+              </div>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="gap-2 flex-shrink-0"
               onClick={handleLogout}
             >

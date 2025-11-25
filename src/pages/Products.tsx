@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,22 +9,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabaseClient";
 
 // Mock data
 const initialProducts = [
-  { id: 1, name: "Laptop Pro", quantity: 25, srp: 55000, price: 52000, description: "High-performance laptop" },
-  { id: 2, name: "Wireless Mouse", quantity: 150, srp: 850, price: 799, description: "Ergonomic wireless mouse" },
-  { id: 3, name: "USB-C Cable", quantity: 200, srp: 450, price: 399, description: "Fast charging cable" },
+ {
+  id: 1,
+  name: "Laptop Pro",
+  quantity: 25,
+  srp_price: 55000, // <--- note this
+  price: 52000,
+  description: "High-performance laptop",
+  image: "",
+  category_id: null
+}
+
 ];
 
 interface Product {
   id: number;
   name: string;
   quantity: number;
-  srp: number;
+  srp_price: number;     
   price: number;
   description: string;
+  image: string;
 }
+
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -42,11 +53,47 @@ export default function Products() {
     srp: "",
     price: "",
     description: "",
+    image: "",
   });
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [imagePreview, setImagePreview] = useState("");
+const filteredProducts = products.filter(
+  (product) => product && product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+
+
+
+ useEffect(() => {
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("tbl_products")
+      .select("*")
+      .order("id", { ascending: true });
+
+    if (error) {
+      toast.error("Failed to fetch products: " + error.message);
+    } else if (data) {
+  const mappedProducts: Product[] = data
+    .filter(p => p != null && p.name) // remove invalid rows
+    .map((p: any) => ({
+      id: p.id,
+      name: p.name || "Unnamed Product",
+      quantity: p.quantity || 0,
+      srp_price: p.srp_price || 0,
+      price: p.price || 0,
+      description: p.description || "",
+      image: p.image || "",
+    }));
+  setProducts(mappedProducts);
+}
+
+  };
+
+  fetchProducts();
+}, []);
+
+
 
   const resetForm = () => {
     setFormData({
@@ -55,81 +102,167 @@ export default function Products() {
       srp: "",
       price: "",
       description: "",
+      image: "",
     });
+    setImagePreview("");
   };
 
-  const handleAdd = () => {
-    if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
+const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    const newProduct: Product = {
-      id: Math.max(...products.map(p => p.id), 0) + 1,
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+  const filePath = fileName; // inside the bucket
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from("product-images")
+    .upload(filePath, file);
+
+  if (error) {
+    toast.error("Failed to upload image: " + error.message);
+    return;
+  }
+
+  // Generate signed URL (valid for 1 hour)
+  const { data: signedData, error: signedError } = await supabase.storage
+    .from("product-images")
+    .createSignedUrl(filePath, 60 * 60);
+
+  if (signedError) {
+    toast.error("Failed to get signed URL: " + signedError.message);
+    return;
+  }
+
+  const publicUrl = signedData.signedUrl;
+
+  setFormData({ ...formData, image: publicUrl });
+  setImagePreview(publicUrl);
+};
+
+
+
+
+  const handleAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault(); // Prevent default form submission
+
+  if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
+    toast.error("Please fill in all required fields");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("tbl_products")
+    .insert([{
       name: formData.name,
       quantity: parseInt(formData.quantity),
-      srp: parseFloat(formData.srp),
+      srp_price: parseFloat(formData.srp),
       price: parseFloat(formData.price),
       description: formData.description,
-    };
+      image: formData.image,
+      category_id: null
+    }])
+    .select();
 
-    setProducts([...products, newProduct]);
+  if (error) {
+    toast.error("Failed to add product: " + error.message);
+    return;
+  }
+
+  if (data) {
+    setProducts([...products, data[0]]);
     toast.success("Product added successfully");
     setIsAddDialogOpen(false);
     resetForm();
-  };
+  }
+};
+
 
   const handleEditClick = (product: Product) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
       quantity: product.quantity.toString(),
-      srp: product.srp.toString(),
+      srp: product.srp_price.toString(),
       price: product.price.toString(),
       description: product.description,
+      image: product.image,
     });
+      setImagePreview(product.image);
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdate = () => {
-    if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
-      toast.error("Please fill in all required fields");
+const handleUpdate = async () => {
+  if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
+    toast.error("Please fill in all required fields");
+    return;
+  }
+
+  if (editingProduct) {
+    const srpPrice = parseFloat(formData.srp);
+    const sellingPrice = parseFloat(formData.price);
+    const quantity = parseInt(formData.quantity);
+
+    if (isNaN(srpPrice) || isNaN(sellingPrice) || isNaN(quantity)) {
+      toast.error("Please enter valid numbers");
       return;
     }
 
-    if (editingProduct) {
-      setProducts(products.map(product =>
-        product.id === editingProduct.id
-          ? {
-              ...product,
-              name: formData.name,
-              quantity: parseInt(formData.quantity),
-              srp: parseFloat(formData.srp),
-              price: parseFloat(formData.price),
-              description: formData.description,
-            }
-          : product
-      ));
+    const { data, error } = await supabase
+      .from("tbl_products")
+      .update({
+        name: formData.name,
+        quantity: quantity,
+        srp_price: srpPrice,
+        price: sellingPrice,
+        description: formData.description,
+        image: formData.image || editingProduct.image,
+      })
+      .eq("id", editingProduct.id)
+      .select();
+
+    if (error) {
+      toast.error("Failed to update product: " + error.message);
+      return;
+    }
+
+    if (data && data[0]) {
+      setProducts(products.map(p => p.id === editingProduct.id ? data[0] : p));
       toast.success("Product updated successfully");
       setIsEditDialogOpen(false);
       setEditingProduct(null);
       resetForm();
     }
-  };
+  }
+};
+
+
 
   const handleDeleteClick = (productId: number) => {
     setDeletingProductId(productId);
     setIsDeleteDialogOpen(true);
   };
 
-  const handleDelete = () => {
-    if (deletingProductId) {
-      setProducts(products.filter(product => product.id !== deletingProductId));
-      toast.success("Product deleted successfully");
-      setIsDeleteDialogOpen(false);
-      setDeletingProductId(null);
+const handleDelete = async () => {
+  if (deletingProductId) {
+    const { error } = await supabase
+      .from("tbl_products")
+      .delete()
+      .eq("id", deletingProductId);
+
+    if (error) {
+      toast.error("Failed to delete product: " + error.message);
+      return;
     }
-  };
+
+    setProducts(products.filter(p => p.id !== deletingProductId));
+    toast.success("Product deleted successfully");
+    setIsDeleteDialogOpen(false);
+    setDeletingProductId(null);
+  }
+};
+
 
   return (
     <div className="space-y-6">
@@ -200,6 +333,24 @@ export default function Products() {
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                 />
               </div>
+
+
+               <div className="space-y-2">
+                <Label htmlFor="add-image">Product Image</Label>
+                <Input 
+                  id="add-image" 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                  </div>
+                )}
+              </div>
+
+
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
@@ -229,6 +380,7 @@ export default function Products() {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
+                    <TableHead>Product Image</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>SRP Price</TableHead>
@@ -241,10 +393,20 @@ export default function Products() {
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.id}</TableCell>
+                     <TableCell>
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="h-12 w-12 object-cover rounded-md" />
+                      ) : (
+                        <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs">
+                          No image
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{product.name}</TableCell>
                     <TableCell>{product.quantity}</TableCell>
-                    <TableCell>₱{product.srp.toLocaleString()}</TableCell>
-                    <TableCell>₱{product.price.toLocaleString()}</TableCell>
+               <TableCell>₱{product.srp_price.toLocaleString()}</TableCell>
+<TableCell>₱{product.price.toLocaleString()}</TableCell>
+
                     <TableCell className="hidden md:table-cell max-w-xs truncate">{product.description}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -329,6 +491,23 @@ export default function Products() {
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-image">Product Image</Label>
+              <Input 
+                id="edit-image" 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                </div>
+              )}
+            </div>
+
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); resetForm(); }}>
