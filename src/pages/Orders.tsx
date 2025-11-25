@@ -1,66 +1,123 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
-
-// Mock data
-const initialOrders = [
-  { id: 1, customerName: "John Doe", totalAmount: 5500, createdAt: "2024-01-15", status: "paid" },
-  { id: 2, customerName: "Jane Smith", totalAmount: 3200, createdAt: "2024-01-16", status: "pending" },
-  { id: 3, customerName: "Bob Johnson", totalAmount: 8900, createdAt: "2024-01-17", status: "not paid" },
-  { id: 4, customerName: "Alice Brown", totalAmount: 2100, createdAt: "2024-01-18", status: "paid" },
-  { id: 5, customerName: "Charlie Wilson", totalAmount: 6700, createdAt: "2024-01-19", status: "pending" },
-];
+import { supabase } from "@/lib/supabaseClient";
 
 type OrderStatus = "pending" | "paid" | "not paid";
 
+interface OrderItem {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  price: number; // added price
+}
+
+interface Order {
+  id: number;
+  customer_name: string;
+  total_amount: number;
+  created_at: string;
+  status: OrderStatus;
+  products?: OrderItem[];
+}
+
 export default function Orders() {
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [editingOrder, setEditingOrder] = useState<typeof initialOrders[0] | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [newStatus, setNewStatus] = useState<OrderStatus>("pending");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
+  const fetchOrders = async () => {
+    try {
+      // Fetch orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("tbl_order")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (ordersError) {
+        toast.error("Failed to fetch orders: " + ordersError.message);
+        return;
+      }
+
+      if (!ordersData) return;
+
+      // Fetch order items including price
+      const { data: itemsData, error: itemsError } = await supabase
+        .from("tbl_order_items")
+        .select("order_id, product_id, product_name, quantity, price");
+
+      if (itemsError) {
+        toast.error("Failed to fetch order items: " + itemsError.message);
+        return;
+      }
+
+      // Map items to orders
+      const ordersWithProducts: Order[] = ordersData.map((order: any) => ({
+        ...order,
+        products: itemsData?.filter(item => item.order_id === order.id) || [],
+      }));
+
+      setOrders(ordersWithProducts);
+    } catch (err) {
+      console.error(err);
+      toast.error("An unexpected error occurred while fetching orders.");
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
   const filteredOrders = orders.filter(order => {
     if (!startDate && !endDate) return true;
-    const orderDate = new Date(order.createdAt);
+    const orderDate = new Date(order.created_at);
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
-    
-    if (start && end) {
-      return orderDate >= start && orderDate <= end;
-    } else if (start) {
-      return orderDate >= start;
-    } else if (end) {
-      return orderDate <= end;
-    }
+
+    if (start && end) return orderDate >= start && orderDate <= end;
+    if (start) return orderDate >= start;
+    if (end) return orderDate <= end;
     return true;
   });
 
-  const totalSales = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const totalSales = filteredOrders
+    .filter(order => order.status === "paid")
+    .reduce((sum, order) => sum + order.total_amount, 0);
 
-  const handleEditClick = (order: typeof initialOrders[0]) => {
+  const handleEditClick = (order: Order) => {
     setEditingOrder(order);
-    setNewStatus(order.status as OrderStatus);
+    setNewStatus(order.status);
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateStatus = () => {
-    if (editingOrder) {
-      setOrders(orders.map(order => 
-        order.id === editingOrder.id 
+  const handleUpdateStatus = async () => {
+    if (!editingOrder) return;
+
+    const { error } = await supabase
+      .from("tbl_order")
+      .update({ status: newStatus })
+      .eq("id", editingOrder.id);
+
+    if (error) {
+      toast.error("Failed to update status: " + error.message);
+    } else {
+      toast.success("Order status updated successfully");
+      setOrders(orders.map(order =>
+        order.id === editingOrder.id
           ? { ...order, status: newStatus }
           : order
       ));
-      toast.success("Order status updated successfully");
       setIsEditDialogOpen(false);
       setEditingOrder(null);
     }
@@ -68,27 +125,19 @@ export default function Orders() {
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case "paid":
-        return "default";
-      case "pending":
-        return "secondary";
-      case "not paid":
-        return "destructive";
-      default:
-        return "secondary";
+      case "paid": return "default";
+      case "pending": return "secondary";
+      case "not paid": return "destructive";
+      default: return "secondary";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "paid":
-        return "bg-success";
-      case "pending":
-        return "bg-warning";
-      case "not paid":
-        return "";
-      default:
-        return "";
+      case "paid": return "bg-success";
+      case "pending": return "bg-warning";
+      case "not paid": return "bg-destructive";
+      default: return "";
     }
   };
 
@@ -107,21 +156,11 @@ export default function Orders() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start-date">Start Date</Label>
-              <Input
-                id="start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">End Date</Label>
-              <Input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+              <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
         </CardContent>
@@ -138,6 +177,8 @@ export default function Orders() {
                 <TableRow>
                   <TableHead>Order ID</TableHead>
                   <TableHead>Customer Name</TableHead>
+                  <TableHead>Products</TableHead>
+                  <TableHead>Quantity x Price</TableHead>
                   <TableHead>Total Amount</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -145,26 +186,23 @@ export default function Orders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
+                {filteredOrders.map((order, index) => (
+                  <TableRow key={order.id} className={index === 0 ? "bg-primary/10" : ""}>
                     <TableCell className="font-medium">#{order.id}</TableCell>
-                    <TableCell>{order.customerName}</TableCell>
-                    <TableCell>₱{order.totalAmount.toLocaleString()}</TableCell>
-                    <TableCell>{order.createdAt}</TableCell>
+                    <TableCell>{order.customer_name}</TableCell>
+                    <TableCell>{order.products?.map(p => p.product_name).join(", ")}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={getStatusVariant(order.status)}
-                        className={getStatusColor(order.status)}
-                      >
+                      {order.products?.map(p => `${p.quantity} x ₱${p.price.toLocaleString()}`).join(", ")}
+                    </TableCell>
+                    <TableCell>₱{order.total_amount.toLocaleString()}</TableCell>
+                    <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(order.status)} className={getStatusColor(order.status)}>
                         {order.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        onClick={() => handleEditClick(order)}
-                      >
+                      <Button variant="outline" size="icon" onClick={() => handleEditClick(order)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -177,9 +215,7 @@ export default function Orders() {
           <div className="mt-6 pt-4 border-t">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-foreground">Total Sales:</span>
-              <span className="text-2xl font-bold text-success">
-                ₱{totalSales.toLocaleString()}
-              </span>
+              <span className="text-2xl font-bold text-success">₱{totalSales.toLocaleString()}</span>
             </div>
           </div>
         </CardContent>
@@ -198,11 +234,11 @@ export default function Orders() {
             </div>
             <div className="space-y-2">
               <Label>Customer Name</Label>
-              <Input value={editingOrder?.customerName} disabled />
+              <Input value={editingOrder?.customer_name} disabled />
             </div>
             <div className="space-y-2">
               <Label>Total Amount</Label>
-              <Input value={`₱${editingOrder?.totalAmount.toLocaleString()}`} disabled />
+              <Input value={`₱${editingOrder?.total_amount.toLocaleString()}`} disabled />
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
@@ -219,12 +255,8 @@ export default function Orders() {
             </div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateStatus}>
-              Update Status
-            </Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateStatus}>Update Status</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

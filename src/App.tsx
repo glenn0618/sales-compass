@@ -14,7 +14,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import AuthCallback from "./auth/AuthCallback";
-import Profile from "./pages/Profile";
+
 
 const queryClient = new QueryClient();
 
@@ -33,11 +33,7 @@ const App = () => (
           <Route path="/orders" element={<DashboardLayout><Orders /></DashboardLayout>} />
           <Route path="/reports" element={<DashboardLayout><Reports /></DashboardLayout>} />
           <Route path="/pos" element={<DashboardLayout><POS /></DashboardLayout>} />
-<<<<<<< HEAD
              <Route path="/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
-=======
-          <Route path="/profile" element={<DashboardLayout><Profile /></DashboardLayout>} />
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

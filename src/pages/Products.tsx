@@ -13,7 +13,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 // Mock data
 const initialProducts = [
-<<<<<<< HEAD
  {
   id: 1,
   name: "Laptop Pro",
@@ -22,14 +21,8 @@ const initialProducts = [
   price: 52000,
   description: "High-performance laptop",
   image: "",
-  category_id: null
 }
 
-=======
-  { id: 1, name: "Laptop Pro", quantity: 25, srp: 55000, price: 52000, description: "High-performance laptop", image: "" },
-  { id: 2, name: "Wireless Mouse", quantity: 150, srp: 850, price: 799, description: "Ergonomic wireless mouse", image: "" },
-  { id: 3, name: "USB-C Cable", quantity: 200, srp: 450, price: 399, description: "Fast charging cable", image: "" },
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
 ];
 
 interface Product {
@@ -63,7 +56,7 @@ export default function Products() {
   });
   const [imagePreview, setImagePreview] = useState("");
 
-  const [imagePreview, setImagePreview] = useState("");
+
 const filteredProducts = products.filter(
   (product) => product && product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
 );
@@ -112,22 +105,6 @@ const filteredProducts = products.filter(
       image: "",
     });
     setImagePreview("");
-<<<<<<< HEAD
-=======
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setFormData({...formData, image: result});
-        setImagePreview(result);
-      };
-      reader.readAsDataURL(file);
-    }
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
   };
 
 const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,18 +124,18 @@ const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     toast.error("Failed to upload image: " + error.message);
     return;
   }
+// Generate signed URL (valid for 1 month)
+const { data: signedData, error: signedError } = await supabase.storage
+  .from("product-images")
+  .createSignedUrl(filePath, 30 * 24 * 60 * 60); // 30 days in seconds
 
-  // Generate signed URL (valid for 1 hour)
-  const { data: signedData, error: signedError } = await supabase.storage
-    .from("product-images")
-    .createSignedUrl(filePath, 60 * 60);
+if (signedError) {
+  toast.error("Failed to get signed URL: " + signedError.message);
+  return;
+}
 
-  if (signedError) {
-    toast.error("Failed to get signed URL: " + signedError.message);
-    return;
-  }
+const publicUrl = signedData.signedUrl;
 
-  const publicUrl = signedData.signedUrl;
 
   setFormData({ ...formData, image: publicUrl });
   setImagePreview(publicUrl);
@@ -183,14 +160,9 @@ const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       srp_price: parseFloat(formData.srp),
       price: parseFloat(formData.price),
       description: formData.description,
-      image: formData.image,
-<<<<<<< HEAD
-      category_id: null
+      image: formData.image
     }])
     .select();
-=======
-    };
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
 
   if (error) {
     toast.error("Failed to add product: " + error.message);
@@ -216,11 +188,7 @@ const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       description: product.description,
       image: product.image,
     });
-<<<<<<< HEAD
       setImagePreview(product.image);
-=======
-    setImagePreview(product.image);
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
     setIsEditDialogOpen(true);
   };
 
@@ -240,7 +208,6 @@ const handleUpdate = async () => {
       return;
     }
 
-<<<<<<< HEAD
     const { data, error } = await supabase
       .from("tbl_products")
       .update({
@@ -261,22 +228,6 @@ const handleUpdate = async () => {
 
     if (data && data[0]) {
       setProducts(products.map(p => p.id === editingProduct.id ? data[0] : p));
-=======
-    if (editingProduct) {
-      setProducts(products.map(product =>
-        product.id === editingProduct.id
-          ? {
-              ...product,
-              name: formData.name,
-              quantity: parseInt(formData.quantity),
-              srp: parseFloat(formData.srp),
-              price: parseFloat(formData.price),
-              description: formData.description,
-              image: formData.image,
-            }
-          : product
-      ));
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
       toast.success("Product updated successfully");
       setIsEditDialogOpen(false);
       setEditingProduct(null);
@@ -381,13 +332,9 @@ const handleDelete = async () => {
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                 />
               </div>
-<<<<<<< HEAD
 
 
                <div className="space-y-2">
-=======
-              <div className="space-y-2">
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
                 <Label htmlFor="add-image">Product Image</Label>
                 <Input 
                   id="add-image" 
@@ -401,11 +348,8 @@ const handleDelete = async () => {
                   </div>
                 )}
               </div>
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
@@ -434,7 +378,6 @@ const handleDelete = async () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Image</TableHead>
                   <TableHead>ID</TableHead>
                     <TableHead>Product Image</TableHead>
                   <TableHead>Name</TableHead>
@@ -448,15 +391,7 @@ const handleDelete = async () => {
               <TableBody>
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell>
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} className="h-12 w-12 object-cover rounded-md" />
-                      ) : (
-                        <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs">
-                          No image
-                        </div>
-                      )}
-                    </TableCell>
+                    
                     <TableCell className="font-medium">{product.id}</TableCell>
                      <TableCell>
                       {product.image ? (
@@ -556,10 +491,6 @@ const handleDelete = async () => {
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
             </div>
-<<<<<<< HEAD
-
-=======
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
             <div className="space-y-2">
               <Label htmlFor="edit-image">Product Image</Label>
               <Input 
@@ -574,11 +505,8 @@ const handleDelete = async () => {
                 </div>
               )}
             </div>
-<<<<<<< HEAD
 
 
-=======
->>>>>>> 6429c629eeb1a71586c786a0a686eaf5be82bae9
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); resetForm(); }}>

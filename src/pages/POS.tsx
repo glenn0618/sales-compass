@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,59 +14,83 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { supabase } from "@/lib/supabaseClient";
 
-// Mock products
-const products = [
-  { id: 1, name: "Laptop Pro", price: 52000, quantity: 25 },
-  { id: 2, name: "Wireless Mouse", price: 799, quantity: 150 },
-  { id: 3, name: "USB-C Cable", price: 399, quantity: 200 },
-  { id: 4, name: "Keyboard", price: 1299, quantity: 80 },
-  { id: 5, name: "Monitor 24\"", price: 8500, quantity: 35 },
-  { id: 6, name: "Headphones", price: 2500, quantity: 60 },
-  { id: 7, name: "Monitor 30", price: 9500, quantity: 35 },
-  { id: 8, name: "Gaming Chair", price: 12500, quantity: 20 },
-  { id: 9, name: "Desk Lamp", price: 750, quantity: 50 },
-  { id: 10, name: "Webcam HD", price: 3500, quantity: 45 },
-];
-
-
-interface CartItem {
+interface Product {
   id: number;
   name: string;
   price: number;
+  srp_price: number;
   quantity: number;
+  image?: string;
+}
+
+interface CartItem extends Product {
   cartQuantity: number;
 }
 
 export default function POS() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
-  
+
+  // Fetch products from Supabase
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const { data, error } = await supabase
+        .from("tbl_products")
+        .select("*")
+        .order("id", { ascending: true });
+
+      if (error) {
+        toast.error("Failed to fetch products: " + error.message);
+      } else if (data) {
+        const mappedProducts: Product[] = data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          srp_price: p.srp_price,
+          quantity: p.quantity,
+            image: p.image, // <-- include the image URL here
+        }));
+        setProducts(mappedProducts);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   const totalPages = Math.ceil(products.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentProducts = products.slice(startIndex, endIndex);
 
-  const addToCart = (product: typeof products[0]) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    
-    if (existingItem) {
-      if (existingItem.cartQuantity < product.quantity) {
-        setCart(cart.map(item =>
-          item.id === product.id
-            ? { ...item, cartQuantity: item.cartQuantity + 1 }
-            : item
-        ));
-      } else {
-        toast.error("Not enough stock available");
-      }
+ const addToCart = (product: Product) => {
+  // Check if product stock is 0
+  if (product.quantity <= 0) {
+    toast.error(`Product "${product.name}" is out of stock. Please restock!`);
+    return;
+  }
+
+  const existingItem = cart.find(item => item.id === product.id);
+
+  if (existingItem) {
+    if (existingItem.cartQuantity < product.quantity) {
+      setCart(cart.map(item =>
+        item.id === product.id
+          ? { ...item, cartQuantity: item.cartQuantity + 1 }
+          : item
+      ));
     } else {
-      setCart([...cart, { ...product, cartQuantity: 1 }]);
-      toast.success("Added to cart");
+      toast.error("Not enough stock available");
     }
-  };
+  } else {
+    setCart([...cart, { ...product, cartQuantity: 1 }]);
+    toast.success("Added to cart");
+  }
+};
 
   const updateCartQuantity = (id: number, change: number) => {
     setCart(cart.map(item => {
@@ -90,22 +114,91 @@ export default function POS() {
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
 
-  const handleCheckout = () => {
-    if (cart.length === 0) {
-      toast.error("Cart is empty");
+  const handleCheckout = async () => {
+  if (cart.length === 0) {
+    toast.error("Cart is empty");
+    return;
+  }
+  if (!customerName.trim()) {
+    toast.error("Please enter customer name");
+    return;
+  }
+
+  try {
+    // 1. Insert order
+    const { data: orderData, error: orderError } = await supabase
+      .from("tbl_order")
+      .insert([
+        {
+          user_id: null,
+          customer_name: customerName,
+          total_amount: totalPrice,
+          status: "pending",
+        },
+      ])
+      .select()
+      .single();
+
+    if (orderError || !orderData) {
+      toast.error("Failed to create order: " + orderError?.message);
       return;
     }
-    if (!customerName.trim()) {
-      toast.error("Please enter customer name");
+
+    const orderId = orderData.id;
+
+    // 2. Insert order items
+    const orderItems = cart.map(item => ({
+      order_id: orderId,
+      product_id: item.id,
+      product_name: item.name,
+      price: item.price,
+      quantity: item.cartQuantity,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("tbl_order_items")
+      .insert(orderItems);
+
+    if (itemsError) {
+      toast.error("Failed to add order items: " + itemsError.message);
       return;
     }
+
+    // 3. Subtract quantity from products table
+    for (const item of cart) {
+      const newQuantity = item.quantity - item.cartQuantity;
+
+      await supabase
+        .from("tbl_products")
+        .update({ quantity: newQuantity })
+        .eq("id", item.id);
+
+      if (newQuantity <= 0) {
+        toast.error(`Product "${item.name}" is out of stock. Please restock!`);
+      }
+    }
+
+    // 4. Update local state to reflect new quantities
+    const updatedProducts = products.map(p => {
+      const cartItem = cart.find(c => c.id === p.id);
+      if (cartItem) return { ...p, quantity: p.quantity - cartItem.cartQuantity };
+      return p;
+    });
+    setProducts(updatedProducts);
+
     toast.success("Transaction completed successfully!");
     setCart([]);
     setCustomerName("");
-  };
+
+  } catch (error) {
+    toast.error("An error occurred during checkout");
+    console.error(error);
+  }
+};
+
 
   return (
-    <div className="space-y-6">
+   <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold text-foreground">Point of Sale</h2>
         <p className="text-muted-foreground mt-1">Process customer transactions</p>
@@ -127,9 +220,18 @@ export default function POS() {
                     onClick={() => addToCart(product)}
                   >
                     <CardContent className="p-3 sm:p-4 space-y-2">
-                      <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-                        <ShoppingCart className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
-                      </div>
+                     <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+  {product.image ? (
+    <img
+      src={product.image}
+      alt={product.name}
+      className="object-cover w-full h-full"
+    />
+  ) : (
+    <ShoppingCart className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground" />
+  )}
+</div>
+
                       <div>
                         <h3 className="font-semibold text-xs sm:text-sm line-clamp-1">{product.name}</h3>
                         <p className="text-base sm:text-lg font-bold text-primary">₱{product.price.toLocaleString()}</p>
@@ -139,12 +241,13 @@ export default function POS() {
                   </Card>
                 ))}
               </div>
-              
+
+              {/* Pagination */}
               {totalPages > 1 && (
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious 
+                      <PaginationPrevious
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
@@ -153,7 +256,7 @@ export default function POS() {
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                       <PaginationItem key={page}>
                         <PaginationLink
                           href="#"
@@ -168,7 +271,7 @@ export default function POS() {
                       </PaginationItem>
                     ))}
                     <PaginationItem>
-                      <PaginationNext 
+                      <PaginationNext
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();

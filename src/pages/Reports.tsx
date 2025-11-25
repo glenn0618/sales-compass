@@ -1,41 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 
-// Mock data
-const initialReports = [
-  { id: 1, customerName: "John Doe", totalAmount: 5500, createdAt: "2024-01-15", status: "completed" },
-  { id: 2, customerName: "Jane Smith", totalAmount: 3200, createdAt: "2024-01-16", status: "completed" },
-  { id: 3, customerName: "Bob Johnson", totalAmount: 8900, createdAt: "2024-01-17", status: "pending" },
-  { id: 4, customerName: "Alice Brown", totalAmount: 2100, createdAt: "2024-01-18", status: "completed" },
-  { id: 5, customerName: "Charlie Wilson", totalAmount: 6700, createdAt: "2024-01-19", status: "completed" },
-];
+type OrderStatus = "pending" | "paid" | "not paid";
+
+interface Order {
+  id: number;
+  customer_name: string;
+  total_amount: number;
+  created_at: string;
+  status: OrderStatus;
+}
 
 export default function Reports() {
-  const [reports] = useState(initialReports);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const filteredReports = reports.filter(report => {
+  // Fetch orders from Supabase
+  const fetchOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("tbl_order")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        toast.error("Failed to fetch orders: " + error.message);
+        return;
+      }
+
+      if (data) {
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An unexpected error occurred while fetching orders.");
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  // Filter orders by date
+  const filteredOrders = orders.filter(order => {
     if (!startDate && !endDate) return true;
-    const reportDate = new Date(report.createdAt);
+    const orderDate = new Date(order.created_at);
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
-    
-    if (start && end) {
-      return reportDate >= start && reportDate <= end;
-    } else if (start) {
-      return reportDate >= start;
-    } else if (end) {
-      return reportDate <= end;
-    }
+
+    if (start && end) return orderDate >= start && orderDate <= end;
+    if (start) return orderDate >= start;
+    if (end) return orderDate <= end;
     return true;
   });
 
-  const totalSales = filteredReports.reduce((sum, report) => sum + report.totalAmount, 0);
+  // Only sum totalAmount for orders with status "paid"
+  const totalSales = filteredOrders
+    .filter(order => order.status === "paid")
+    .reduce((sum, order) => sum + order.total_amount, 0);
 
   return (
     <div className="space-y-6">
@@ -87,17 +116,17 @@ export default function Reports() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReports.map((report) => (
-                <TableRow key={report.id}>
-                  <TableCell className="font-medium">{report.customerName}</TableCell>
-                  <TableCell>₱{report.totalAmount.toLocaleString()}</TableCell>
-                  <TableCell>{report.createdAt}</TableCell>
+              {filteredOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium">{order.customer_name}</TableCell>
+                  <TableCell>₱{order.total_amount.toLocaleString()}</TableCell>
+                  <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <Badge
-                      variant={report.status === "completed" ? "default" : "secondary"}
-                      className={report.status === "completed" ? "bg-success" : ""}
+                      variant={order.status === "paid" ? "default" : "secondary"}
+                      className={order.status === "paid" ? "bg-success" : "bg-warning"}
                     >
-                      {report.status}
+                      {order.status}
                     </Badge>
                   </TableCell>
                 </TableRow>
