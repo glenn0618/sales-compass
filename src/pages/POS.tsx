@@ -28,6 +28,12 @@ interface CartItem {
 export default function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
+  
+  // Profile form state
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
 
   const addToCart = (product: typeof products[0]) => {
     const existingItem = cart.find(item => item.id === product.id);
@@ -82,6 +88,14 @@ export default function POS() {
     toast.success("Transaction completed successfully!");
     setCart([]);
     setCustomerName("");
+  };
+
+  const handleUpdateProfile = () => {
+    if (!fullName.trim() || !email.trim() || !phoneNumber.trim()) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    toast.success("Profile updated successfully!");
   };
 
   return (
@@ -216,6 +230,61 @@ export default function POS() {
           </Card>
         </div>
       </div>
+
+      {/* Update Profile Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Update Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="full-name">Full Name</Label>
+              <Input
+                id="full-name"
+                placeholder="Enter your full name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="Enter your phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter new password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end">
+            <Button onClick={handleUpdateProfile}>
+              Update Profile
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
