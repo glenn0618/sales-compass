@@ -1,0 +1,537 @@
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabaseClient";
+
+// Mock data
+const initialProducts = [
+ {
+  id: 1,
+  name: "Laptop Pro",
+  quantity: 25,
+  srp_price: 55000, // <--- note this
+  price: 52000,
+  description: "High-performance laptop",
+  image: "",
+}
+
+];
+
+interface Product {
+  id: number;
+  name: string;
+  quantity: number;
+  srp_price: number;     
+  price: number;
+  description: string;
+  image: string;
+}
+
+
+export default function Products() {
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
+  
+  // Form fields
+  const [formData, setFormData] = useState({
+    name: "",
+    quantity: "",
+    srp: "",
+    price: "",
+    description: "",
+    image: "",
+  });
+  const [imagePreview, setImagePreview] = useState("");
+
+
+const filteredProducts = products.filter(
+  (product) => product && product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+
+
+
+ useEffect(() => {
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("tbl_products")
+      .select("*")
+      .order("id", { ascending: true });
+
+    if (error) {
+      toast.error("Failed to fetch products: " + error.message);
+    } else if (data) {
+  const mappedProducts: Product[] = data
+    .filter(p => p != null && p.name) // remove invalid rows
+    .map((p: any) => ({
+      id: p.id,
+      name: p.name || "Unnamed Product",
+      quantity: p.quantity || 0,
+      srp_price: p.srp_price || 0,
+      price: p.price || 0,
+      description: p.description || "",
+      image: p.image || "",
+    }));
+  setProducts(mappedProducts);
+}
+
+  };
+
+  fetchProducts();
+}, []);
+
+
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      quantity: "",
+      srp: "",
+      price: "",
+      description: "",
+      image: "",
+    });
+    setImagePreview("");
+  };
+
+const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+  const filePath = fileName; // inside the bucket
+
+  // Upload to Supabase Storage
+  const { data, error } = await supabase.storage
+    .from("product-images")
+    .upload(filePath, file);
+
+  if (error) {
+    toast.error("Failed to upload image: " + error.message);
+    return;
+  }
+// Generate signed URL (valid for 1 month)
+const { data: signedData, error: signedError } = await supabase.storage
+  .from("product-images")
+  .createSignedUrl(filePath, 30 * 24 * 60 * 60); // 30 days in seconds
+
+if (signedError) {
+  toast.error("Failed to get signed URL: " + signedError.message);
+  return;
+}
+
+const publicUrl = signedData.signedUrl;
+
+
+  setFormData({ ...formData, image: publicUrl });
+  setImagePreview(publicUrl);
+};
+
+
+
+
+  const handleAdd = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault(); // Prevent default form submission
+
+  if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
+    toast.error("Please fill in all required fields");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("tbl_products")
+    .insert([{
+      name: formData.name,
+      quantity: parseInt(formData.quantity),
+      srp_price: parseFloat(formData.srp),
+      price: parseFloat(formData.price),
+      description: formData.description,
+      image: formData.image
+    }])
+    .select();
+
+  if (error) {
+    toast.error("Failed to add product: " + error.message);
+    return;
+  }
+
+  if (data) {
+    setProducts([...products, data[0]]);
+    toast.success("Product added successfully");
+    setIsAddDialogOpen(false);
+    resetForm();
+  }
+};
+
+
+  const handleEditClick = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      quantity: product.quantity.toString(),
+      srp: product.srp_price.toString(),
+      price: product.price.toString(),
+      description: product.description,
+      image: product.image,
+    });
+      setImagePreview(product.image);
+    setIsEditDialogOpen(true);
+  };
+
+const handleUpdate = async () => {
+  if (!formData.name || !formData.quantity || !formData.srp || !formData.price) {
+    toast.error("Please fill in all required fields");
+    return;
+  }
+
+  if (editingProduct) {
+    const srpPrice = parseFloat(formData.srp);
+    const sellingPrice = parseFloat(formData.price);
+    const quantity = parseInt(formData.quantity);
+
+    if (isNaN(srpPrice) || isNaN(sellingPrice) || isNaN(quantity)) {
+      toast.error("Please enter valid numbers");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tbl_products")
+      .update({
+        name: formData.name,
+        quantity: quantity,
+        srp_price: srpPrice,
+        price: sellingPrice,
+        description: formData.description,
+        image: formData.image || editingProduct.image,
+      })
+      .eq("id", editingProduct.id)
+      .select();
+
+    if (error) {
+      toast.error("Failed to update product: " + error.message);
+      return;
+    }
+
+    if (data && data[0]) {
+      setProducts(products.map(p => p.id === editingProduct.id ? data[0] : p));
+      toast.success("Product updated successfully");
+      setIsEditDialogOpen(false);
+      setEditingProduct(null);
+      resetForm();
+    }
+  }
+};
+
+
+
+  const handleDeleteClick = (productId: number) => {
+    setDeletingProductId(productId);
+    setIsDeleteDialogOpen(true);
+  };
+
+const handleDelete = async () => {
+  if (deletingProductId) {
+    const { error } = await supabase
+      .from("tbl_products")
+      .delete()
+      .eq("id", deletingProductId);
+
+    if (error) {
+      toast.error("Failed to delete product: " + error.message);
+      return;
+    }
+
+    setProducts(products.filter(p => p.id !== deletingProductId));
+    toast.success("Product deleted successfully");
+    setIsDeleteDialogOpen(false);
+    setDeletingProductId(null);
+  }
+};
+
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">Products</h2>
+          <p className="text-muted-foreground mt-1">Manage your product inventory</p>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Product
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Product</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-name">Product Name *</Label>
+                <Input 
+                  id="add-name" 
+                  placeholder="Enter product name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="add-quantity">Quantity *</Label>
+                  <Input 
+                    id="add-quantity" 
+                    type="number" 
+                    placeholder="0"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-srp">SRP Price *</Label>
+                  <Input 
+                    id="add-srp" 
+                    type="number" 
+                    placeholder="0.00"
+                    value={formData.srp}
+                    onChange={(e) => setFormData({...formData, srp: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-price">Selling Price *</Label>
+                <Input 
+                  id="add-price" 
+                  type="number" 
+                  placeholder="0.00"
+                  value={formData.price}
+                  onChange={(e) => setFormData({...formData, price: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-description">Description</Label>
+                <Textarea 
+                  id="add-description" 
+                  placeholder="Enter product description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                />
+              </div>
+
+
+               <div className="space-y-2">
+                <Label htmlFor="add-image">Product Image</Label>
+                <Input 
+                  id="add-image" 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                  </div>
+                )}
+              </div>
+
+
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button onClick={handleAdd}>Add Product</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle>Product List</CardTitle>
+            <Input
+              placeholder="Search products..."
+              className="w-full sm:max-w-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                    <TableHead>Product Image</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>SRP Price</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead className="hidden md:table-cell">Description</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    
+                    <TableCell className="font-medium">{product.id}</TableCell>
+                     <TableCell>
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="h-12 w-12 object-cover rounded-md" />
+                      ) : (
+                        <div className="h-12 w-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs">
+                          No image
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{product.name}</TableCell>
+                    <TableCell>{product.quantity}</TableCell>
+               <TableCell>₱{product.srp_price.toLocaleString()}</TableCell>
+<TableCell>₱{product.price.toLocaleString()}</TableCell>
+
+                    <TableCell className="hidden md:table-cell max-w-xs truncate">{product.description}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => handleEditClick(product)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => handleDeleteClick(product.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Product Name *</Label>
+              <Input 
+                id="edit-name" 
+                placeholder="Enter product name"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-quantity">Quantity *</Label>
+                <Input 
+                  id="edit-quantity" 
+                  type="number" 
+                  placeholder="0"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-srp">SRP Price *</Label>
+                <Input 
+                  id="edit-srp" 
+                  type="number" 
+                  placeholder="0.00"
+                  value={formData.srp}
+                  onChange={(e) => setFormData({...formData, srp: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-price">Selling Price *</Label>
+              <Input 
+                id="edit-price" 
+                type="number" 
+                placeholder="0.00"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea 
+                id="edit-description" 
+                placeholder="Enter product description"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-image">Product Image</Label>
+              <Input 
+                id="edit-image" 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 w-24 object-cover rounded-md border" />
+                </div>
+              )}
+            </div>
+
+
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); resetForm(); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdate}>Update Product</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the product from your inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingProductId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
